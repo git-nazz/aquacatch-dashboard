@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AQUA-CATCH Mobile Dashboard</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Chart.js for smooth data visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              400: '#38bdf8',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              900: '#0c4a6e',
+            },
+            aqua: '#00f2fe',
+            tealAccent: '#4facfe',
+            slateDark: '#0f172a',
+            cardDark: '#1e293b',
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
+
+  <style>
+    body {
+      background-color: #090d16;
+      font-family: 'Inter', sans-serif;
+      color: #f8fafc;
+      overflow-x: hidden;
+    }
+    
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #0284c7;
+    }
+
+    /* Glowing accent effects */
+    .glow-cyan {
+      box-shadow: 0 0 15px rgba(0, 242, 254, 0.25);
+    }
+    .glow-amber {
+      box-shadow: 0 0 15px rgba(245, 158, 11, 0.25);
+    }
+    .glow-red {
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
+    }
+    
+    /* Subtle pulse animation for hardware status */
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .pulse-active {
+      animation: pulse-ring 2s infinite ease-in-out;
+    }
+
+    /* Smooth transition for drawer */
+    .drawer-transition {
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-start p-2 sm:p-4 md:p-6">
+
+  <!-- Main Viewport Container (Simulating Mobile First App UI within Responsive Frame) -->
+  <div class="w-full max-w-md md:max-w-4xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col min-h-[92vh] relative">
+    
+    <!-- TOP HEADER / DEVICE STATUS BAR -->
+    <header class="bg-slate-950/80 backdrop-blur-md px-4 py-3 border-b border-slate-800 sticky top-0 z-30">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-lg glow-cyan">
+            <i class="fa-solid fa-fish-fins text-lg"></i>
+          </div>
+          <div>
+            <h1 class="text-base font-bold tracking-wide text-white leading-tight">AQUA-CATCH</h1>
+            <p class="text-[10px] text-cyan-400 font-medium tracking-wider uppercase">ESP32 DevKit V1</p>
+          </div>
+        </div>
+
+        <!-- Connection Badge & Toggle -->
+        <div class="flex items-center space-x-2">
+          <button id="conn-btn" onclick="toggleConnection()" class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium transition-all hover:bg-emerald-500/20">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="conn-status-text">WS Connected</span>
+          </button>
+          
+          <button onclick="toggleSimDrawer()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs transition" title="Simulation Controls">
+            <i class="fa-solid fa-sliders"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- State & Relay Status Ribbon -->
+      <div class="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
+        <div class="flex items-center space-x-2">
+          <span class="text-slate-400">State:</span>
+          <span id="sys-state-badge" class="px-2 py-0.5 rounded font-semibold bg-cyan-950 text-cyan-400 border border-cyan-800/50 uppercase text-[11px] tracking-wider">
+            IDLE
+          </span>
+        </div>
+
+        <div class="flex items-center space-x-3">
+          <div class="flex items-center space-x-1">
+            <span class="text-slate-400">Pump Relay:</span>
+            <span id="relay-status" class="w-2.5 h-2.5 rounded-full bg-slate-600 inline-block"></span>
+          </div>
+          <div class="flex items-center space-x-1">
+            <span class="text-slate-400">Cycles:</span>
+            <span id="cycle-count-val" class="font-bold text-white">0</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- CONTENT BODY - Scrollable section -->
+    <main class="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
+
+      <!-- AUTOMATED CYCLE & QUICK ACTIONS CARD -->
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-3.5 backdrop-blur-sm">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center space-x-2">
+            <i class="fa-solid fa-clock-rotate-left text-cyan-400 text-sm"></i>
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-300">Auto-Collection Cycle</h2>
+          </div>
+          <span id="timer-countdown" class="text-xs font-mono font-bold text-cyan-300 bg-slate-900 px-2 py-0.5 rounded border border-slate-700">30:00</span>
+        </div>
+
+        <!-- Progress Bar for 30 min auto cycle -->
+        <div class="w-full bg-slate-900 rounded-full h-1.5 mb-3 overflow-hidden border border-slate-800">
+          <div id="timer-progress-bar" class="bg-gradient-to-r from-cyan-500 to-blue-500 h-1.5 rounded-full transition-all duration-1000" style="width: 0%"></div>
+        </div>
+
+        <!-- Action Control Buttons -->
+        <div class="grid grid-cols-2 gap-2.5">
+          <button id="btn-collect" onclick="triggerManualCollect()" class="relative group overflow-hidden rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 p-2.5 text-center font-semibold text-white text-xs shadow-md hover:from-cyan-500 hover:to-blue-500 active:scale-[0.98] transition">
+            <span class="flex items-center justify-center space-x-1.5">
+              <i class="fa-solid fa-arrows-rotate" id="collect-icon"></i>
+              <span id="collect-btn-text">Collect Feed Now</span>
+            </span>
+          </button>
+          
+          <button id="btn-tare" onclick="tareScale()" class="rounded-xl bg-slate-700/80 hover:bg-slate-700 border border-slate-600/50 p-2.5 text-center font-semibold text-slate-200 text-xs shadow-sm active:scale-[0.98] transition flex items-center justify-center space-x-1.5">
+            <i class="fa-solid fa-weight-scale text-slate-400"></i>
+            <span>Tare Scale (0g)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- SENSOR GAUGES / CARDS GRID -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        
+        <!-- 1. WATER TEMPERATURE (DS18B20) -->
+        <div id="card-temp" class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-3 flex flex-col justify-between transition-all">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Water Temp</span>
+            <div class="w-6 h-6 rounded-lg bg-orange-500/10 text-orange-400 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-temperature-half"></i>
+            </div>
+          </div>
+          <div class="my-2">
+            <div class="flex items-baseline space-x-1">
+              <span id="val-temp" class="text-2xl font-bold text-white tracking-tight">26.5</span>
+              <span class="text-xs font-semibold text-slate-400">°C</span>
+            </div>
+            <p id="status-temp" class="text-[10px] text-emerald-400 font-medium mt-0.5">Optimal Range</p>
+          </div>
+          <div class="w-full bg-slate-900 rounded-full h-1 overflow-hidden">
+            <div id="bar-temp" class="bg-orange-400 h-full transition-all duration-500" style="width: 50%"></div>
+          </div>
+        </div>
+
+        <!-- 2. pH LEVEL (PIN 34) -->
+        <div id="card-ph" class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-3 flex flex-col justify-between transition-all">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">pH Level</span>
+            <div class="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-vial"></i>
+            </div>
+          </div>
+          <div class="my-2">
+            <div class="flex items-baseline space-x-1">
+              <span id="val-ph" class="text-2xl font-bold text-white tracking-tight">7.20</span>
+              <span class="text-[10px] text-slate-500">pH</span>
+            </div>
+            <p id="status-ph" class="text-[10px] text-emerald-400 font-medium mt-0.5">Neutral (Ideal 6.5-8.5)</p>
+          </div>
+          <div class="w-full bg-slate-900 rounded-full h-1 overflow-hidden">
+            <div id="bar-ph" class="bg-emerald-400 h-full transition-all duration-500" style="width: 51%"></div>
+          </div>
+        </div>
+
+        <!-- 3. WATER TURBIDITY (PIN 35) -->
+        <div id="card-turbidity" class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-3 flex flex-col justify-between transition-all">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Turbidity</span>
+            <div class="w-6 h-6 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-droplet font-bold"></i>
+            </div>
+          </div>
+          <div class="my-2">
+            <div class="flex items-baseline space-x-1">
+              <span id="val-turbidity" class="text-2xl font-bold text-white tracking-tight">85</span>
+              <span class="text-[10px] font-semibold text-slate-400">NTU</span>
+            </div>
+            <div class="flex items-center justify-between mt-0.5">
+              <p id="status-turbidity" class="text-[10px] text-emerald-400 font-medium">Clear Water</p>
+              <span id="val-turb-v" class="text-[10px] text-slate-500 font-mono">3.82V</span>
+            </div>
+          </div>
+          <div class="w-full bg-slate-900 rounded-full h-1 overflow-hidden">
+            <div id="bar-turbidity" class="bg-cyan-400 h-full transition-all duration-500" style="width: 15%"></div>
+          </div>
+        </div>
+
+        <!-- 4. FEED BIN WEIGHT (HX711) -->
+        <div id="card-bin" class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-3 flex flex-col justify-between transition-all">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Bin Weight</span>
+            <div class="w-6 h-6 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-dumpster"></i>
+            </div>
+          </div>
+          <div class="my-2">
+            <div class="flex items-baseline space-x-1">
+              <span id="val-bin" class="text-2xl font-bold text-white tracking-tight">120</span>
+              <span class="text-xs font-semibold text-slate-400">/ 500g</span>
+            </div>
+            <p id="status-bin" class="text-[10px] text-indigo-300 font-medium mt-0.5">Capacity 24%</p>
+          </div>
+          <div class="w-full bg-slate-900 rounded-full h-1 overflow-hidden">
+            <div id="bar-bin" class="bg-indigo-400 h-full transition-all duration-500" style="width: 24%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HARDWARE DIAGNOSTICS STRIP -->
+      <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-2.5 flex items-center justify-around text-xs text-slate-400">
+        <div class="flex items-center space-x-1.5">
+          <i class="fa-solid fa-microchip text-slate-500"></i>
+          <span>OLED: <strong id="diag-oled" class="text-emerald-400">OK (0x3C)</strong></span>
+        </div>
+        <div class="w-px h-3 bg-slate-800"></div>
+        <div class="flex items-center space-x-1.5">
+          <i class="fa-solid fa-sd-card text-slate-500"></i>
+          <span>SD Card: <strong id="diag-sd" class="text-emerald-400">Mounted</strong></span>
+        </div>
+        <div class="w-px h-3 bg-slate-800"></div>
+        <div class="flex items-center space-x-1.5">
+          <i class="fa-solid fa-scale-balanced text-slate-500"></i>
+          <span>HX711: <strong id="diag-scale" class="text-emerald-400">Ready</strong></span>
+        </div>
+      </div>
+
+      <!-- CHARTS SECTION WITH TAB TOGGLE -->
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-3.5 backdrop-blur-sm">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+            <i class="fa-solid fa-chart-line text-cyan-400"></i> Live Data Trends
+          </h2>
+          <!-- Tab selector -->
+          <div class="flex bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-[11px]">
+            <button id="tab-btn-water" onclick="switchChartTab('water')" class="px-2.5 py-1 rounded-md font-medium text-white bg-slate-800 transition">Water Quality</button>
+            <button id="tab-btn-feed" onclick="switchChartTab('feed')" class="px-2.5 py-1 rounded-md font-medium text-slate-400 hover:text-slate-200 transition">Feed & Turbidity</button>
+          </div>
+        </div>
+
+        <!-- Chart Container -->
+        <div class="relative h-44 w-full">
+          <canvas id="aquacatchChart"></canvas>
+        </div>
+      </div>
+
+      <!-- ACTIVITY FEED & SD LOG TRAIL -->
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-3.5">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+            <i class="fa-solid fa-list-check text-cyan-400"></i> Device Log Stream (`/aquacatch.csv`)
+          </h2>
+          <button onclick="clearLog()" class="text-[10px] text-slate-500 hover:text-slate-300 transition">Clear</button>
+        </div>
+        
+        <!-- Log Container -->
+        <div id="log-container" class="h-32 overflow-y-auto space-y-1.5 font-mono text-[11px] pr-1">
+          <!-- Dynamically populated log entries -->
+        </div>
+      </div>
+
+    </main>
+    
+    <!-- BOTTOM NAV / QUICK STATUS BAR -->
+    <footer class="bg-slate-950 border-t border-slate-800 p-2.5 px-4 text-center text-slate-500 text-[11px] flex items-center justify-between">
+      <span>AQUA-CATCH IoT Controller v1.0</span>
+      <span class="flex items-center gap-1">
+        <i class="fa-solid fa-wifi text-emerald-400 text-[10px]"></i> 115200 Baud
+      </span>
+    </footer>
+
+    <!-- HARDWARE SIMULATION DRAWER (COLLAPSIBLE MODAL/DRAWER) -->
+    <div id="sim-drawer" class="absolute inset-x-0 bottom-0 bg-slate-950/95 border-t-2 border-cyan-500/50 rounded-t-3xl p-4 transform translate-y-full drawer-transition z-40 backdrop-blur-lg shadow-2xl">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div class="flex items-center space-x-2">
+          <div class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></div>
+          <h3 class="text-sm font-bold text-white">ESP32 Hardware Simulator</h3>
+        </div>
+        <button onclick="toggleSimDrawer()" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="py-4 space-y-4 text-xs">
+        <!-- Sim Turbidity Slider -->
+        <div>
+          <div class="flex justify-between mb-1">
+            <label class="text-slate-300 font-medium">Turbidity Injector (NTU):</label>
+            <span id="sim-turb-val" class="font-mono text-cyan-400 font-bold">85 NTU</span>
+          </div>
+          <input type="range" id="sim-turb-input" min="0" max="600" value="85" class="w-full accent-cyan-400 bg-slate-800 rounded-lg h-2 cursor-pointer" oninput="updateSimData()" />
+          <p class="text-[10px] text-slate-500 mt-0.5">* Setting &gt;300 NTU auto-triggers feed collection cycle after 1 min</p>
+        </div>
+
+        <!-- Sim Bin Weight Slider -->
+        <div>
+          <div class="flex justify-between mb-1">
+            <label class="text-slate-300 font-medium">Feed Bin Weight (g):</label>
+            <span id="sim-bin-val" class="font-mono text-indigo-400 font-bold">120 g</span>
+          </div>
+          <input type="range" id="sim-bin-input" min="0" max="600" value="120" class="w-full accent-indigo-400 bg-slate-800 rounded-lg h-2 cursor-pointer" oninput="updateSimData()" />
+        </div>
+
+        <!-- Sim Temperature Slider -->
+        <div>
+          <div class="flex justify-between mb-1">
+            <label class="text-slate-300 font-medium">Water Temp (°C):</label>
+            <span id="sim-temp-val" class="font-mono text-orange-400 font-bold">26.5 °C</span>
+          </div>
+          <input type="range" id="sim-temp-input" min="15" max="40" step="0.5" value="26.5" class="w-full accent-orange-400 bg-slate-800 rounded-lg h-2 cursor-pointer" oninput="updateSimData()" />
+        </div>
+
+        <!-- Quick Event Injections -->
+        <div class="pt-2 grid grid-cols-2 gap-2">
+          <button onclick="injectTurbiditySpike()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-slate-200 text-center font-medium transition flex items-center justify-center space-x-1.5">
+            <i class="fa-solid fa-bolt text-amber-400"></i>
+            <span>Inject Murky Water (450 NTU)</span>
+          </button>
+          <button onclick="injectFullBin()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-slate-200 text-center font-medium transition flex items-center justify-center space-x-1.5">
+            <i class="fa-solid fa-box text-purple-400"></i>
+            <span>Simulate Bin Full (520g)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- APPLICATION LOGIC & ESP32 STATE MACHINE EMULATION -->
+  <script>
+    // ================= SENSOR & HARDWARE STATE =================
+    const HARDWARE_CONFIG = {
+      TURBIDITY_TRIGGER_NTU: 300.0,
+      BIN_FULL_GRAMS: 500.0,
+      SERVO_SETTLE_MS: 800,
+      PUMP_RUN_MS: 4000, // Speed up for web simulation (hardware uses 15000ms)
+      AUTO_COLLECT_INTERVAL_SEC: 30 * 60, // 30 minutes
+    };
+
+    let isConnected = true;
+    let systemState = 'IDLE'; // IDLE, SERVO_MOVING, PUMP_RUNNING, SERVO_RETURNING
+    let cycleCount = 0;
+    let autoTimerSeconds = HARDWARE_CONFIG.AUTO_COLLECT_INTERVAL_SEC;
+
+    // Live Sensor Metrics
+    let sensorData = {
+      tempC: 26.5,
+      phValue: 7.20,
+      turbidityNTU: 85,
+      turbidityV: 3.82,
+      binGrams: 120,
+      sdOk: true,
+      oledOk: true,
+      scaleOk: true
+    };
+
+    // Charting state
+    let chartInstance = null;
+    let activeChartTab = 'water';
+    const maxDataPoints = 15;
+    const chartLabels = [];
+    const historyData = {
+      temp: [],
+      ph: [],
+      turbidity: [],
+      bin: []
+    };
+
+    // ================= INITIALIZATION =================
+    window.onload = function () {
+      initChart();
+      startSimLoop();
+      startAutoTimer();
+      logEvent('SYSTEM', 'AQUA-CATCH ESP32 Web Interface Connected', 'info');
+      logEvent('SD', 'Log initialized: time_s,temp_C,pH,turb_V,turb_NTU,bin_g,state', 'sys');
+    };
+
+    // ================= CHART.JS CONFIGURATION =================
+    function initChart() {
+      const ctx = document.getElementById('aquacatchChart').getContext('2d');
+      
+      // Initialize time labels
+      const now = new Date();
+      for (let i = maxDataPoints - 1; i >= 0; i--) {
+        const t = new Date(now.getTime() - i * 3000);
+        chartLabels.push(t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        historyData.temp.push(26.5 + (Math.random() * 0.4 - 0.2));
+        historyData.ph.push(7.20 + (Math.random() * 0.1 - 0.05));
+        historyData.turbidity.push(85 + (Math.random() * 4 - 2));
+        historyData.bin.push(120);
+      }
+
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: getChartDatasets(),
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 400 },
+          scales: {
+            x: {
+              grid: { color: '#1e293b' },
+              ticks: { color: '#64748b', font: { size: 9 } }
+            },
+            y: {
+              grid: { color: '#1e293b' },
+              ticks: { color: '#64748b', font: { size: 9 } }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: { color: '#cbd5e1', font: { size: 10 } }
+            }
+          }
+        }
+      });
+    }
+
+    function getChartDatasets() {
+      if (activeChartTab === 'water') {
+        return {
+          labels: chartLabels,
+          datasets: [
+            {
+              label: 'Temp (°C)',
+              data: historyData.temp,
+              borderColor: '#f97316',
+              backgroundColor: 'rgba(249, 115, 22, 0.1)',
+              borderWidth: 2,
+              tension: 0.3,
+              fill: true
+            },
+            {
+              label: 'pH Level',
+              data: historyData.ph,
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              borderWidth: 2,
+              tension: 0.3,
+              fill: true
+            }
+          ]
+        };
+      } else {
+        return {
+          labels: chartLabels,
+          datasets: [
+            {
+              label: 'Turbidity (NTU)',
+              data: historyData.turbidity,
+              borderColor: '#06b6d4',
+              backgroundColor: 'rgba(6, 182, 212, 0.1)',
+              borderWidth: 2,
+              tension: 0.3,
+              fill: true
+            },
+            {
+              label: 'Bin Weight (g)',
+              data: historyData.bin,
+              borderColor: '#818cf8',
+              backgroundColor: 'rgba(129, 140, 248, 0.1)',
+              borderWidth: 2,
+              tension: 0.3,
+              fill: true
+            }
+          ]
+        };
+      }
+    }
+
+    function switchChartTab(tab) {
+      activeChartTab = tab;
+      const btnWater = document.getElementById('tab-btn-water');
+      const btnFeed = document.getElementById('tab-btn-feed');
+
+      if (tab === 'water') {
+        btnWater.className = 'px-2.5 py-1 rounded-md font-medium text-white bg-slate-800 transition';
+        btnFeed.className = 'px-2.5 py-1 rounded-md font-medium text-slate-400 hover:text-slate-200 transition';
+      } else {
+        btnFeed.className = 'px-2.5 py-1 rounded-md font-medium text-white bg-slate-800 transition';
+        btnWater.className = 'px-2.5 py-1 rounded-md font-medium text-slate-400 hover:text-slate-200 transition';
+      }
+
+      chartInstance.data = getChartDatasets();
+      chartInstance.update();
+    }
+
+    // ================= SIMULATION & TICK LOOP =================
+    function startSimLoop() {
+      setInterval(() => {
+        if (!isConnected) return;
+
+        // Add subtle sensor jitter if not manually modified
+        const tempNoise = (Math.random() - 0.5) * 0.1;
+        const phNoise = (Math.random() - 0.5) * 0.02;
+        
+        sensorData.tempC = Math.max(15, Math.min(40, sensorData.tempC + tempNoise));
+        sensorData.phValue = Math.max(0, Math.min(14, sensorData.phValue + phNoise));
+        
+        // Calculate Turbidity Volts (voltsToNTU approximation inversion)
+        // Approximate V range from 2.5V (high turb) to 4.2V (clean water)
+        sensorData.turbidityV = Math.max(2.5, 4.2 - (sensorData.turbidityNTU / 1000) * 1.5);
+
+        // Auto trigger cycle if Turbidity > 300 NTU
+        if (sensorData.turbidityNTU >= HARDWARE_CONFIG.TURBIDITY_TRIGGER_NTU && systemState === 'IDLE') {
+          logEvent('TRIGGER', `High Turbidity (${Math.round(sensorData.turbidityNTU)} NTU >= ${HARDWARE_CONFIG.TURBIDITY_TRIGGER_NTU} NTU)`, 'warn');
+          startCollectionCycle("Turbidity Spike");
+        }
+
+        updateUI();
+        pushChartData();
+
+      }, 1500);
+    }
+
+    // Push new point to charts
+    function pushChartData() {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+      chartLabels.push(timeStr);
+      chartLabels.shift();
+
+      historyData.temp.push(parseFloat(sensorData.tempC.toFixed(1)));
+      historyData.temp.shift();
+
+      historyData.ph.push(parseFloat(sensorData.phValue.toFixed(2)));
+      historyData.ph.shift();
+
+      historyData.turbidity.push(Math.round(sensorData.turbidityNTU));
+      historyData.turbidity.shift();
+
+      historyData.bin.push(Math.round(sensorData.binGrams));
+      historyData.bin.shift();
+
+      chartInstance.update('none'); // Update without full redraw animation for performance
+    }
+
+    // ================= UI UPDATE ENGINE =================
+    function updateUI() {
+      // Temperature UI
+      const tVal = sensorData.tempC.toFixed(1);
+      document.getElementById('val-temp').innerText = tVal;
+      document.getElementById('bar-temp').style.width = `${Math.min(100, Math.max(0, (sensorData.tempC / 40) * 100))}%`;
+      
+      const tempCard = document.getElementById('card-temp');
+      const tempStatus = document.getElementById('status-temp');
+      if (sensorData.tempC < 20.0 || sensorData.tempC > 31.0) {
+        tempStatus.innerText = 'Warning: Abnormal Temp';
+        tempStatus.className = 'text-[10px] text-amber-400 font-medium mt-0.5';
+        tempCard.className = 'bg-slate-800/80 border border-amber-500/50 rounded-2xl p-3 flex flex-col justify-between transition-all glow-amber';
+      } else {
+        tempStatus.innerText = 'Optimal Range (24-30°C)';
+        tempStatus.className = 'text-[10px] text-emerald-400 font-medium mt-0.5';
+        tempCard.className = 'bg-slate-800/80 border border-slate-700/60 rounded-2xl p-3 flex flex-col justify-between transition-all';
+      }
+
+      // pH UI
+      const phVal = sensorData.phValue.toFixed(2);
+      document.getElementById('val-ph').innerText = phVal;
+      document.getElementById('bar-ph').style.width = `${(sensorData.phValue / 14) * 100}%`;
+      const phCard = document.getElementById('card-ph');
+      const phStatus = document.getElementById('status-ph');
+      if (sensorData.phValue < 6.5 || sensorData.phValue > 8.5) {
+        phStatus.innerText = 'Sub-optimal pH Level';
+        phStatus.className = 'text-[10px] text-amber-400 font-medium mt-0.5';
+        phCard.className = 'bg-slate-800/80 border border-amber-500/50 rounded-2xl p-3 flex flex-col justify-between transition-all glow-amber';
+      } else {
+        phStatus.innerText = 'Optimal Zone (6.5 - 8.5)';
+        phStatus.className = 'text-[10px] text-emerald-400 font-medium mt-0.5';
+        phCard.className = 'bg-slate-800/80 border border-slate-700/60 rounded-2xl p-3 flex flex-col justify-between transition-all';
+      }
+
+      // Turbidity UI
+      const turbVal = Math.round(sensorData.turbidityNTU);
+      document.getElementById('val-turbidity').innerText = turbVal;
+      document.getElementById('val-turb-v').innerText = `${sensorData.turbidityV.toFixed(2)}V`;
+      document.getElementById('bar-turbidity').style.width = `${Math.min(100, (turbVal / 500) * 100)}%`;
+      const turbCard = document.getElementById('card-turbidity');
+      const turbStatus = document.getElementById('status-turbidity');
+      if (turbVal >= HARDWARE_CONFIG.TURBIDITY_TRIGGER_NTU) {
+        turbStatus.innerText = 'HIGH TURBIDITY (>300)';
+        turbStatus.className = 'text-[10px] text-red-400 font-bold mt-0.5';
+        turbCard.className = 'bg-slate-800/80 border border-red-500/50 rounded-2xl p-3 flex flex-col justify-between transition-all glow-red';
+      } else {
+        turbStatus.innerText = 'Clear Water';
+        turbStatus.className = 'text-[10px] text-emerald-400 font-medium mt-0.5';
+        turbCard.className = 'bg-slate-800/80 border border-slate-700/60 rounded-2xl p-3 flex flex-col justify-between transition-all';
+      }
+
+      // Feed Bin UI
+      const binVal = Math.round(sensorData.binGrams);
+      document.getElementById('val-bin').innerText = binVal;
+      const capPct = Math.min(100, Math.round((binVal / HARDWARE_CONFIG.BIN_FULL_GRAMS) * 100));
+      document.getElementById('bar-bin').style.width = `${capPct}%`;
+      const binCard = document.getElementById('card-bin');
+      const binStatus = document.getElementById('status-bin');
+      if (binVal >= HARDWARE_CONFIG.BIN_FULL_GRAMS) {
+        binStatus.innerText = '!! BIN FULL !! Clean needed';
+        binStatus.className = 'text-[10px] text-red-400 font-bold mt-0.5 animate-pulse';
+        binCard.className = 'bg-slate-800/80 border border-red-500/60 rounded-2xl p-3 flex flex-col justify-between transition-all glow-red';
+      } else {
+        binStatus.innerText = `Capacity ${capPct}%`;
+        binStatus.className = 'text-[10px] text-indigo-300 font-medium mt-0.5';
+        binCard.className = 'bg-slate-800/80 border border-slate-700/60 rounded-2xl p-3 flex flex-col justify-between transition-all';
+      }
+
+      // Sync simulator sliders text
+      document.getElementById('sim-turb-val').innerText = `${Math.round(sensorData.turbidityNTU)} NTU`;
+      document.getElementById('sim-bin-val').innerText = `${Math.round(sensorData.binGrams)} g`;
+      document.getElementById('sim-temp-val').innerText = `${sensorData.tempC.toFixed(1)} °C`;
+    }
+
+    // ================= STATE MACHINE & FEED COLLECTION CYCLE =================
+    function startCollectionCycle(reason) {
+      if (systemState !== 'IDLE') return;
+
+      logEvent('COLLECT', `Starting collection cycle (Trigger: ${reason})`, 'action');
+      
+      // Step 1: Open Gate (Servo Moving)
+      setSystemState('SERVO_MOVING');
+      document.getElementById('collect-btn-text').innerText = 'Opening Gate...';
+      document.getElementById('collect-icon').className = 'fa-solid fa-gear animate-spin text-amber-400';
+
+      setTimeout(() => {
+        // Step 2: Pump Running
+        setSystemState('PUMP_RUNNING');
+        setRelay(true);
+        document.getElementById('collect-btn-text').innerText = 'Pumping Water...';
+        document.getElementById('collect-icon').className = 'fa-solid fa-circle-notch animate-spin text-cyan-400';
+
+        // Collect uneaten feed weight simulation
+        sensorData.binGrams += Math.random() * 45 + 15;
+
+        setTimeout(() => {
+          // Step 3: Returning Gate Servo
+          setRelay(false);
+          setSystemState('SERVO_RETURNING');
+          document.getElementById('collect-btn-text').innerText = 'Closing Gate...';
+          document.getElementById('collect-icon').className = 'fa-solid fa-gear animate-spin text-amber-400';
+
+          setTimeout(() => {
+            // Step 4: Back to Idle
+            setSystemState('IDLE');
+            cycleCount++;
+            document.getElementById('cycle-count-val').innerText = cycleCount;
+            document.getElementById('collect-btn-text').innerText = 'Collect Feed Now';
+            document.getElementById('collect-icon').className = 'fa-solid fa-arrows-rotate';
+            autoTimerSeconds = HARDWARE_CONFIG.AUTO_COLLECT_INTERVAL_SEC; // Reset timer
+            logEvent('COLLECT', 'Cycle completed successfully. Pump OFF.', 'success');
+          }, HARDWARE_CONFIG.SERVO_SETTLE_MS);
+
+        }, HARDWARE_CONFIG.PUMP_RUN_MS);
+
+      }, HARDWARE_CONFIG.SERVO_SETTLE_MS);
+    }
+
+    function triggerManualCollect() {
+      if (systemState === 'IDLE') {
+        startCollectionCycle('Manual User Command');
+      }
+    }
+
+    function tareScale() {
+      if (!sensorData.scaleOk) return;
+      sensorData.binGrams = 0;
+      document.getElementById('sim-bin-input').value = 0;
+      updateUI();
+      logEvent('HX711', 'Load cell tared to 0.00g', 'sys');
+    }
+
+    function setSystemState(newState) {
+      systemState = newState;
+      const badge = document.getElementById('sys-state-badge');
+      badge.innerText = newState;
+
+      switch(newState) {
+        case 'IDLE':
+          badge.className = 'px-2 py-0.5 rounded font-semibold bg-cyan-950 text-cyan-400 border border-cyan-800/50 uppercase text-[11px] tracking-wider';
+          break;
+        case 'SERVO_MOVING':
+        case 'SERVO_RETURNING':
+          badge.className = 'px-2 py-0.5 rounded font-semibold bg-amber-950 text-amber-400 border border-amber-800/50 uppercase text-[11px] tracking-wider animate-pulse';
+          break;
+        case 'PUMP_RUNNING':
+          badge.className = 'px-2 py-0.5 rounded font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800/50 uppercase text-[11px] tracking-wider animate-pulse';
+          break;
+      }
+    }
+
+    function setRelay(on) {
+      const el = document.getElementById('relay-status');
+      if (on) {
+        el.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 glow-cyan pulse-active';
+      } else {
+        el.className = 'w-2.5 h-2.5 rounded-full bg-slate-600';
+      }
+    }
+
+    // ================= TIMER ENGINE =================
+    function startAutoTimer() {
+      setInterval(() => {
+        if (systemState === 'IDLE' && isConnected) {
+          autoTimerSeconds--;
+          if (autoTimerSeconds <= 0) {
+            startCollectionCycle('30-Min Auto Timer');
+            autoTimerSeconds = HARDWARE_CONFIG.AUTO_COLLECT_INTERVAL_SEC;
+          }
+        }
+        
+        // Render Countdown MM:SS
+        const mins = Math.floor(autoTimerSeconds / 60);
+        const secs = autoTimerSeconds % 60;
+        document.getElementById('timer-countdown').innerText = 
+          `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        
+        // Render Progress Bar
+        const pct = ((HARDWARE_CONFIG.AUTO_COLLECT_INTERVAL_SEC - autoTimerSeconds) / HARDWARE_CONFIG.AUTO_COLLECT_INTERVAL_SEC) * 100;
+        document.getElementById('timer-progress-bar').style.width = `${pct}%`;
+
+      }, 1000);
+    }
+
+    // ================= SIMULATION DRAWER & CONTROLS =================
+    function toggleSimDrawer() {
+      const drawer = document.getElementById('sim-drawer');
+      drawer.classList.toggle('translate-y-full');
+    }
+
+    function updateSimData() {
+      sensorData.turbidityNTU = parseFloat(document.getElementById('sim-turb-input').value);
+      sensorData.binGrams = parseFloat(document.getElementById('sim-bin-input').value);
+      sensorData.tempC = parseFloat(document.getElementById('sim-temp-input').value);
+      updateUI();
+    }
+
+    function injectTurbiditySpike() {
+      document.getElementById('sim-turb-input').value = 450;
+      updateSimData();
+      logEvent('SIM', 'Injected high turbidity spike: 450 NTU', 'warn');
+    }
+
+    function injectFullBin() {
+      document.getElementById('sim-bin-input').value = 520;
+      updateSimData();
+      logEvent('SIM', 'Injected bin weight spike: 520g (FULL)', 'warn');
+    }
+
+    function toggleConnection() {
+      isConnected = !isConnected;
+      const btnText = document.getElementById('conn-status-text');
+      const btn = document.getElementById('conn-btn');
+
+      if (isConnected) {
+        btnText.innerText = 'WS Connected';
+        btn.className = 'flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium transition-all hover:bg-emerald-500/20';
+        logEvent('COMM', 'WebSocket re-connected to ESP32', 'sys');
+      } else {
+        btnText.innerText = 'Disconnected';
+        btn.className = 'flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium transition-all hover:bg-red-500/20';
+        logEvent('COMM', 'ESP32 Connection lost or paused', 'warn');
+      }
+    }
+
+    // ================= LOGGING ENGINE =================
+    function logEvent(tag, message, type = 'info') {
+      const container = document.getElementById('log-container');
+      const timeStr = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      
+      let badgeStyle = 'text-cyan-400 bg-cyan-950/60 border-cyan-800/40';
+      if (type === 'warn') badgeStyle = 'text-amber-400 bg-amber-950/60 border-amber-800/40';
+      if (type === 'action') badgeStyle = 'text-blue-400 bg-blue-950/60 border-blue-800/40';
+      if (type === 'success') badgeStyle = 'text-emerald-400 bg-emerald-950/60 border-emerald-800/40';
+      if (type === 'sys') badgeStyle = 'text-slate-400 bg-slate-900 border-slate-700';
+
+      const entry = document.createElement('div');
+      entry.className = 'flex items-start space-x-2 bg-slate-900/80 p-1.5 rounded border border-slate-800/80';
+      entry.innerHTML = `
+        <span class="text-slate-500 shrink-0 font-mono text-[10px]">${timeStr}</span>
+        <span class="px-1.5 py-0.2 rounded border text-[9px] font-bold tracking-wide uppercase shrink-0 ${badgeStyle}">${tag}</span>
+        <span class="text-slate-300 truncate">${message}</span>
+      `;
+
+      container.prepend(entry);
+    }
+
+    function clearLog() {
+      document.getElementById('log-container').innerHTML = '';
+    }
+  </script>
+</body>
+</html>
